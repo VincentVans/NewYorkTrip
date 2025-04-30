@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8"/>
+  <title>NYC Itinerary with Numbered Pins</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+
+  <!-- Leaflet CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+
+  <style>
+    :root {
+      --vh: 1vh;
+    }
+    html, body { 
+      margin: 0; 
+      padding: 0; 
+      height: 100%; 
+      height: 100vh;
+      height: calc(var(--vh, 1vh) * 100);
+      width: 100%;
+      position: fixed;
+      overflow: hidden;
+    }
+    .tabs { 
+      display: flex; 
+      overflow-x: auto; 
+      background: #f4f4f4;
+      -webkit-overflow-scrolling: touch;
+      width: 100%;
+    }
+    .tabs button {
+      flex: 1; 
+      padding: 10px; 
+      border: none; 
+      background: inherit;
+      font-size: 14px; 
+      cursor: pointer;
+      -webkit-tap-highlight-color: transparent;
+      touch-action: manipulation;
+    }
+    .tabs button.active { background: #ddd; }
+    #map { 
+      width: 100%; 
+      height: calc(100% - 44px);
+      height: calc((var(--vh, 1vh) * 100) - 44px);
+      z-index: 1;
+    }
+    #overview-text {
+      display: none;
+      padding: 10px;
+      height: calc(100% - 44px);
+      height: calc((var(--vh, 1vh) * 100) - 44px);
+      overflow: auto;
+      background: #fff;
+      font-family: sans-serif;
+      -webkit-overflow-scrolling: touch;
+      z-index: 1;
+    }
+    .number-pin {
+      background: #2A93EE;
+      color: #fff;
+      border-radius: 50%;
+      width: 24px; height: 24px;
+      text-align: center; line-height: 24px;
+      font-weight: bold;
+      border: 2px solid #fff;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="tabs" id="dayTabs"></div>
+
+  <!-- overview panel: hidden until "Itinerary" tab is clicked -->
+  <div id="overview-text">
+    <pre style="white-space: pre-wrap; font-family: inherit;">
+Day 1 (Saturday, June 7): Arrival Day
+
+Afternoon: Arrive at JFK at 3:30 PM
+4:30-6:00 PM: Travel to NH hotel and check in
+Evening: Light dinner nearby and rest after travel
+Note: This is primarily a travel and recovery day
+
+Day 2 (Sunday, June 8): Central Park & The Met
+
+Morning: Central Park highlights - Bethesda Fountain, Bow Bridge, The Mall
+Afternoon: The Metropolitan Museum of Art (allows strollers in most areas)
+Evening: Dinner at Tavern on the Green or another restaurant near Central Park
+Infant-friendly note: The Met's vast spaces allow for easy stroller navigation and plenty of visual stimulation for all ages
+
+Day 3 (Monday, June 9): Statue of Liberty & Downtown
+
+Morning: Statue of Liberty and Ellis Island tour (first ferry of the day)
+Afternoon: Lunch in Financial District
+Late Afternoon: 9/11 Memorial
+Evening: Dinner at Serendipity 3 or Junior's for cheesecake
+
+Day 4 (Tuesday, June 10): Empire State Building & Midtown
+
+Morning: Empire State Building (early visit to avoid crowds)
+Midday: Grand Central Terminal exploration
+Afternoon: New York Public Library and Bryant Park
+Evening: Times Square visit and dinner in the area
+Infant-friendly note: Breaking up the day with Bryant Park provides a nice outdoor space for your daughter to have some playtime
+
+Day 5 (Wednesday, June 11): Broadway Matinee & Food Tour
+
+Morning: Katz's Delicatessen for their famous pastrami (go early to avoid lines)
+Early Afternoon: Broadway Matinee (2:00 PM show while mother-in-law watches baby?)
+Good matinee options: "The Lion King," "Wicked," or "Aladdin"
+Evening: Dinner at another iconic NYC restaurant like Keens Steakhouse or Lombardi's Pizza
+
+Day 6 (Thursday, June 12): Red Bank, NJ Visit
+
+Morning: Take train from Penn Station to Red Bank (approximately 1.5 hours)
+Day: Visit with friends
+Evening: Return to NYC in the evening
+Transit note: NJ Transit trains offer regular service between NYC and Red Bank
+
+Day 7 (Friday, June 13): Museum Day & Comedy Night
+
+Morning: Museum of Modern Art (MoMA) or American Museum of Natural History
+Afternoon: Lunch and shopping in SoHo or Fifth Avenue
+Evening: Comedy show (mother-in-law with baby?)
+Try Comedy Cellar, Gotham Comedy Club, or Caroline's on Broadway
+Have dinner in Greenwich Village before the show
+
+Day 8 (Saturday, June 14): Flexible Day & NYC Favorites
+
+Morning: Any remaining must-see attractions or revisit favorites
+Options include: Top of the Rock, High Line, Little Island, or Greenwich Village walking
+Afternoon: Famous NYC desserts tour - visit Levain Bakery for cookies, Magnolia Bakery for cupcakes
+Evening: Farewell dinner at a special restaurant
+
+Day 9 (Sunday, June 15): Departure
+
+Activities based on departure time
+Check out and head to airport
+    </pre>
+  </div>
+
+  <div id="map"></div>
+
+  <!-- Leaflet JS -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+  <script>
+    // pre-geocoded stops per day
+    const stopsPerDay = {
+      'Day 1': [
+        { label: 'JFK Airport',      coords: [40.641311, -73.778139] },
+        { label: 'NH Collection',    coords: [40.749857, -73.982770] }
+      ],
+      'Day 2': [
+        { label: 'NH Collection',    coords: [40.749857, -73.982770] },
+        { label: 'Bethesda Fountain',coords: [40.774528, -73.970701] },
+        { label: 'Bow Bridge',       coords: [40.775364, -73.970215] },
+        { label: 'The Mall',         coords: [40.772530, -73.972720] },
+        { label: 'The Met',          coords: [40.779437, -73.963244] },
+        { label: 'Tavern on the Green', coords: [40.772436, -73.978429] }
+      ],
+      'Day 3': [
+        { label: 'NH Collection',    coords: [40.749857, -73.982770] },
+        { label: 'Statue of Liberty',coords: [40.689249, -74.044500] },
+        { label: 'Ellis Island',     coords: [40.699475, -74.039559] },
+        { label: 'Financial District', coords: [40.707491, -74.011276] },
+        { label: '9/11 Memorial',    coords: [40.711506, -74.013272] },
+        { label: 'Serendipity 3',    coords: [40.763125, -73.967079] }
+      ],
+      'Day 4': [
+        { label: 'NH Collection',    coords: [40.749857, -73.982770] },
+        { label: 'Empire State Bldg',coords: [40.748817, -73.985428] },
+        { label: 'Grand Central',    coords: [40.752726, -73.977229] },
+        { label: 'NY Public Library',coords: [40.753182, -73.982253] },
+        { label: 'Bryant Park',      coords: [40.753596, -73.983233] },
+        { label: 'Times Square',     coords: [40.758896, -73.985130] }
+      ],
+      'Day 5': [
+        { label: 'NH Collection',    coords: [40.749857, -73.982770] },
+        { label: "Katz's Deli",      coords: [40.722237, -73.987501] },
+        { label: 'Minskoff Theatre', coords: [40.758476, -73.987896] },
+        { label: "Lombardi's Pizza", coords: [40.7216,   -73.9950  ] }
+      ],
+      'Day 6': [
+        { label: 'NH Collection',    coords: [40.749857, -73.982770] },
+        { label: 'Penn Station',     coords: [40.750568, -73.993519] },
+        { label: 'Red Bank, NJ',     coords: [40.347604, -74.074885] },
+        { label: 'Penn Station',     coords: [40.750568, -73.993519] }
+      ],
+      'Day 7': [
+        { label: 'NH Collection',    coords: [40.749857, -73.982770] },
+        { label: 'MoMA',             coords: [40.761433, -73.977622] },
+        { label: 'SoHo',             coords: [40.723000, -74.000000] },
+        { label: 'Comedy Cellar',    coords: [40.730340, -74.000583] }
+      ],
+      'Day 8': [
+        { label: 'NH Collection',    coords: [40.749857, -73.982770] },
+        { label: 'Top of the Rock',  coords: [40.759101, -73.979278] },
+        { label: 'High Line',        coords: [40.748000, -74.004800] },
+        { label: 'Levain Bakery',    coords: [40.779589, -73.980459] },
+        { label: 'The Smith',        coords: [40.761541, -73.967666] }
+      ],
+      'Day 9': [
+        { label: 'NH Collection',    coords: [40.749857, -73.982770] },
+        { label: 'JFK Airport',      coords: [40.641311, -73.778139] }
+      ]
+    };
+
+    let map, currentMarkers = [];
+
+    function fixIOSSafariVH() {
+      const vh = window.innerHeight * 0.01;
+      document.documentElement.style.setProperty('--vh', `${vh}px`);
+      
+      // Force redraw for Safari
+      if (/iPhone|iPad|iPod/i.test(navigator.userAgent)) {
+        if (map) {
+          setTimeout(function() {
+            map.invalidateSize();
+          }, 100);
+        }
+      }
+    }
+
+    function init() {
+      // Set initial vh variable
+      fixIOSSafariVH();
+
+      // Initialize map
+      map = L.map('map', {
+        // Improve touch behavior for mobile
+        tap: true,
+        dragging: !L.Browser.mobile,
+        tap: !L.Browser.mobile,
+        touchZoom: true,
+        scrollWheelZoom: false
+      }).setView([40.758, -73.9855], 12);
+
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '© OpenStreetMap contributors'
+      }).addTo(map);
+
+      // Enable drag and tap on mobile after initial load
+      if (L.Browser.mobile) {
+        setTimeout(() => {
+          map.dragging.enable();
+          map.tap.enable();
+        }, 1000);
+      }
+
+      // build tabs
+      const tabs = document.getElementById('dayTabs');
+
+      // 1) Itinerary tab
+      const itBtn = document.createElement('button');
+      itBtn.textContent = 'Itinerary';
+      itBtn.onclick = () => selectDay('Itinerary', itBtn);
+      itBtn.classList.add('active');
+      tabs.appendChild(itBtn);
+
+      // 2) day-by-day tabs
+      Object.keys(stopsPerDay).forEach(day => {
+        const btn = document.createElement('button');
+        btn.textContent = day;
+        btn.onclick = () => selectDay(day, btn);
+        tabs.appendChild(btn);
+      });
+
+      // show the overview by default
+      selectDay('Itinerary', itBtn);
+      
+      // Set up event listeners for Safari iOS fixes
+      window.addEventListener('resize', fixIOSSafariVH);
+      window.addEventListener('orientationchange', () => {
+        setTimeout(fixIOSSafariVH, 100);
+      });
+      
+      // Specific fix for iOS Safari to handle window resize on scroll
+      // when address bar appears/disappears
+      if (/iPhone|iPad|iPod/i.test(navigator.userAgent)) {
+        window.addEventListener('scroll', () => {
+          setTimeout(fixIOSSafariVH, 100);
+        });
+      }
+    }
+
+    function selectDay(day, btn) {
+      document.querySelectorAll('.tabs button').forEach(b => b.classList.remove('active'));
+      if (btn) btn.classList.add('active');
+
+      // toggle overview vs. map
+      const overview = document.getElementById('overview-text');
+      const mapEl    = document.getElementById('map');
+      if (day === 'Itinerary') {
+        overview.style.display = 'block';
+        mapEl.style.display    = 'none';
+        return;
+      } else {
+        overview.style.display = 'none';
+        mapEl.style.display    = 'block';
+        
+        // Force map to recalculate its size
+        if (map) {
+          setTimeout(() => {
+            map.invalidateSize();
+          }, 100);
+        }
+      }
+
+      // clear old markers
+      currentMarkers.forEach(m => map.removeLayer(m));
+      currentMarkers = [];
+
+      // add pins
+      stopsPerDay[day].forEach((stop, i) => {
+        const icon = L.divIcon({
+          className: 'number-pin',
+          html: (i+1).toString(),
+          iconSize: [24,24],
+          iconAnchor: [12,12]
+        });
+        const marker = L.marker(stop.coords, { icon }).addTo(map)
+          .bindPopup(`${i+1}. ${stop.label}`);
+        currentMarkers.push(marker);
+      });
+
+      // fit bounds
+      const constGroup = new L.featureGroup(currentMarkers);
+      map.fitBounds(constGroup.getBounds().pad(0.2));
+    }
+
+    window.onload = init;
+  </script>
+</body>
+</html>
