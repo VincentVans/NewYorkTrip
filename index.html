@@ -65,6 +65,36 @@
       text-align: center; line-height: 24px;
       font-weight: bold;
       border: 2px solid #fff;
+      cursor: pointer;
+    }
+    .popup-content {
+      text-align: center;
+      min-width: 200px;
+    }
+    .popup-title {
+      font-weight: bold;
+      margin-bottom: 10px;
+      font-size: 14px;
+    }
+    .popup-button {
+      display: block;
+      width: 100%;
+      padding: 8px 12px;
+      margin: 5px 0;
+      background: #2A93EE;
+      color: white;
+      text-decoration: none;
+      border-radius: 4px;
+      font-size: 13px;
+      text-align: center;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .popup-button:hover {
+      background: #1e7bc7;
+    }
+    .popup-button:active {
+      background: #1666ab;
     }
   </style>
 </head>
@@ -223,6 +253,27 @@ Check out and head to airport
       }
     }
 
+    function createPopupContent(stop, index) {
+      const lat = stop.coords[0];
+      const lng = stop.coords[1];
+      
+      // Google Maps URLs
+      const directionsUrl = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`;
+      const restaurantsUrl = `https://www.google.com/maps/search/restaurants+4+stars/@${lat},${lng},15z`;
+      
+      return `
+        <div class="popup-content">
+          <div class="popup-title">${index}. ${stop.label}</div>
+          <a href="${directionsUrl}" target="_blank" class="popup-button" onclick="event.stopPropagation();">
+            📍 Get Directions
+          </a>
+          <a href="${restaurantsUrl}" target="_blank" class="popup-button" onclick="event.stopPropagation();">
+            🍽️ Find 4★+ Restaurants Nearby
+          </a>
+        </div>
+      `;
+    }
+
     function init() {
       // Set initial vh variable
       fixIOSSafariVH();
@@ -321,7 +372,10 @@ Check out and head to airport
           iconAnchor: [12,12]
         });
         const marker = L.marker(stop.coords, { icon }).addTo(map)
-          .bindPopup(`${i+1}. ${stop.label}`);
+          .bindPopup(createPopupContent(stop, i+1), {
+            maxWidth: 250,
+            minWidth: 200
+          });
         currentMarkers.push(marker);
       });
 
